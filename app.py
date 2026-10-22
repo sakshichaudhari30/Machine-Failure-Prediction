@@ -2,6 +2,7 @@
 import streamlit as st
 import joblib
 import pandas as pd
+import numpy as np
 
 # Set the tab title
 st.set_page_config(page_title="Machine Failure Prediction")
@@ -10,31 +11,53 @@ st.set_page_config(page_title="Machine Failure Prediction")
 st.title("Machine Failure Prediction Project")
 st.subheader("By Sakshi Chaudhari")
 
-# Load preprocessing pipeline and model
-pre = joblib.load("preprocessing_pipeline.pkl")
-model = joblib.load("gradient_boosting_model.pkl")
+# Load the saved preprocessing pipeline and model
+try:
+    pre = joblib.load("preprocessing_pipeline.pkl")
+    model = joblib.load("gradient_boosting_model.pkl")
+except Exception as e:
+    st.error(f"Error loading model files: {e}")
+    st.stop()
 
-# User inputs
+# User input fields
 Air_Temperature = st.number_input(
-    "Air Temperature [K]", min_value=0.0, value=298.0
-)
-Process_Temperature = st.number_input(
-    "Process Temperature [K]", min_value=0.0, value=308.0
-)
-Rotational_Speed = st.number_input(
-    "Rotational Speed [rpm]", min_value=0, value=1500
-)
-Torque = st.number_input(
-    "Torque [Nm]", min_value=0.0, value=40.0
-)
-Tool_Wear = st.number_input(
-    "Tool Wear [min]", min_value=0, value=100
+    "Air Temperature [K]",
+    min_value=250.0,
+    max_value=350.0,
+    value=298.0
 )
 
+Process_Temperature = st.number_input(
+    "Process Temperature [K]",
+    min_value=250.0,
+    max_value=350.0,
+    value=308.0
+)
+
+Rotational_Speed = st.number_input(
+    "Rotational Speed [rpm]",
+    min_value=0,
+    value=1500
+)
+
+Torque = st.number_input(
+    "Torque [Nm]",
+    min_value=0.0,
+    value=40.0
+)
+
+Tool_Wear = st.number_input(
+    "Tool Wear [min]",
+    min_value=0,
+    value=100
+)
+
+# Prediction button
 submit = st.button("Predict Machine Failure")
 
 if submit:
-    # Original feature names expected by the preprocessing pipeline
+
+    # Create input DataFrame using original feature names
     data = {
         "Air temperature [K]": [Air_Temperature],
         "Process temperature [K]": [Process_Temperature],
@@ -46,10 +69,10 @@ if submit:
     xnew = pd.DataFrame(data)
 
     try:
-        # Preprocess the input
+        # Apply the saved preprocessing pipeline
         xnew_pre = pre.transform(xnew)
 
-        # Match the feature names used when fitting the model
+        # Convert preprocessed output to a DataFrame
         expected_columns = [
             "con__Air temperature _K_",
             "con__Process temperature _K_",
@@ -58,18 +81,31 @@ if submit:
             "con__Tool wear _min_"
         ]
 
-        xnew_pre = pd.DataFrame(
-            xnew_pre,
-            columns=expected_columns
-        )
-
-        # Predict
-        preds = model.predict(xnew_pre)
-
-        if preds[0] == 1:
-            st.error("Potential Machine Failure Detected")
+        if isinstance(xnew_pre, pd.DataFrame):
+            xnew_pre = xnew_pre.copy()
+            xnew_pre.columns = expected_columns
         else:
-            st.success("No Machine Failure Predicted")
+            xnew_pre = pd.DataFrame(
+                xnew_pre,
+                columns=expected_columns
+            )
+
+        # Check for missing or infinite values
+        if not np.isfinite(xnew_pre.to_numpy(dtype=float)).all():
+            st.error(
+                "Preprocessing generated missing or infinite values. "
+                "Please check the saved preprocessing pipeline."
+            )
+
+        else:
+            # Predict using the trained model
+            preds = model.predict(xnew_pre)
+
+            # Display prediction
+            if preds[0] == 1:
+                st.error("Potential Machine Failure Detected")
+            else:
+                st.success("No Machine Failure Predicted")
 
     except Exception as e:
         st.error(f"Prediction error: {e}")
