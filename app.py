@@ -18,7 +18,7 @@ try:
 except Exception as e:
     st.error(f"Error loading model files: {e}")
     st.stop()
-
+machine_type = st.selectbox("Machine Type", ["L", "M", "H"])
 # User input fields
 Air_Temperature = st.number_input(
     "Air Temperature [K]",
